@@ -1,16 +1,16 @@
 # ARandR -- Another XRandR GUI
 # Copyright (C) 2008 -- 2011 chrysn <chrysn@fsfe.org>
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -94,6 +94,37 @@ class Position(tuple):
     left = property(lambda self:self[0])
     top = property(lambda self:self[1])
     def __str__(self):
+        return "%dx%d"%self
+
+class Scale(tuple):
+    """2-tuple of left and top that can be created from a '<x-scale>x<y-scale>' string"""
+    def __new__(cls, arg):
+        if isinstance(arg, basestring):
+            arg = [float(x) for x in arg.split("x")]
+        arg = tuple(arg)
+        assert len(arg)==2
+        return super(Scale, cls).__new__(cls, arg)
+
+    xscale = property(lambda self:self[0])
+    yscale = property(lambda self:self[1])
+
+    def __str__(self):
+        return "%dx%d"%self
+
+class ScaleFrom(tuple):
+    """2-tuple of left and top that can be created from a '<x-scale>x<y-scale>' string"""
+    def __new__(cls, arg):
+        if isinstance(arg, basestring):
+            arg = [int(x) for x in arg.split("x")]
+        arg = tuple(arg)
+        assert len(arg)==2
+        return super(ScaleFrom, cls).__new__(cls, arg)
+
+    xscalefrom = property(lambda self:self[0])
+    yscalefrom = property(lambda self:self[1])
+
+    def __str__(self):
+
         return "%dx%d"%self
 
 class Geometry(tuple):

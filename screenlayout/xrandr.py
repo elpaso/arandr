@@ -1,26 +1,27 @@
 # ARandR -- Another XRandR GUI
 # Copyright (C) 2008 -- 2011 chrysn <chrysn@fsfe.org>
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Wrapper around command line xrandr (only 1.2 per output features supported)"""
 
 import os
+import re
 import subprocess
 import warnings
 
-from .auxiliary import BetterList, Size, Position, Geometry, FileLoadError, FileSyntaxError, InadequateConfiguration, Rotation, ROTATIONS, NORMAL, NamedSize
+from .auxiliary import BetterList, Size, Position, Geometry, FileLoadError, FileSyntaxError, InadequateConfiguration, Rotation, ROTATIONS, NORMAL, NamedSize, Scale, ScaleFrom
 
 import gettext
 gettext.install('arandr')
@@ -39,7 +40,7 @@ class XRandR(object):
 
         version_output = self._output("--version")
         if not ("1.2" in version_output or "1.3" in version_output or "1.4" in version_output) and not force_version:
-            raise Exception("XRandR 1.2/1.3 required.")
+            raise Exception("XRandR 1.2/1.3/1.4 required.")
 
     def _get_outputs(self):
         assert self.state.outputs.keys() == self.configuration.outputs.keys()
@@ -49,6 +50,7 @@ class XRandR(object):
     #################### calling xrandr ####################
 
     def _output(self, *args):
+        print args
         p = subprocess.Popen(("xrandr",)+args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.environ)
         ret, err = p.communicate()
         status = p.wait()
@@ -112,6 +114,16 @@ class XRandR(object):
                         if p[1] not in ROTATIONS:
                             raise FileSyntaxError()
                         o.rotation = Rotation(p[1])
+                    elif p[0] == '--scale':
+                        try:
+                            scale = float(p[1])
+                        except:
+                            raise FileSyntaxError()
+                        o.scale = Scale(scale)
+                    elif p[0] == '--scale-from':
+                        if not re.match(r'\d+x\d+', p[1]):
+                            raise FileSyntaxError()
+                        o.scale = ScaleFrom(p[1])
                     else:
                         raise FileSyntaxError()
                 o.active = True
@@ -124,9 +136,13 @@ class XRandR(object):
 
         self._load_parse_screenline(screenline)
 
-        for headline,details in items:
+        #from IPython import embed; embed()
+        for headline,details, transform in items:
+            scale_from = None
+            scale = None
             if headline.startswith("  "): continue # a currently disconnected part of the screen i can't currently get any info out of
             if headline == "": continue # noise
+
 
             headline = headline.replace('unknown connection', 'unknown-connection')
             hsplit = headline.split(" ")
@@ -145,6 +161,11 @@ class XRandR(object):
 
                 modeid = hsplit[3].strip("()")
 
+                # scale and scale_from
+                if transform:
+                    if transform[0] != ['1.000000', '0.000000', '0.000000']:
+                        scale = "%sx%s" % (transform[0][0], transform[1][1])
+
                 if hsplit[4] in ROTATIONS: rotation = Rotation(hsplit[4])
                 else: rotation = NORMAL
             else:
@@ -152,6 +173,8 @@ class XRandR(object):
                 geometry = None
                 modeid = None
                 rotation = None
+                scale = None
+                scale_from = None
 
             o.rotations = set()
             for r in ROTATIONS:
@@ -181,18 +204,29 @@ class XRandR(object):
                     o.modes.append(NamedSize(r, name=n))
 
             self.state.outputs[o.name] = o
-            self.configuration.outputs[o.name] = self.configuration.OutputConfiguration(active, geometry, rotation, currentname)
+            self.configuration.outputs[o.name] = self.configuration.OutputConfiguration(active, geometry, rotation, currentname, scale, scale_from)
+
 
     def _load_raw_lines(self):
         output = self._output("--verbose")
         items = []
         screenline = None
+        transform = 0
         for l in output.split('\n'):
             if l.startswith("Screen "):
                 assert screenline is None
                 screenline = l
+            elif l.startswith('\tTransform:'):
+                items[-1][-1].append(l.split(' ')[2:])
+                transform = 1
             elif l.startswith('\t'):
-                continue
+                if transform and transform < 3:
+                    transform += 1
+                    items[-1][-1].append(l.strip().split(' '))
+                    if transform == 3:
+                        transform = 0
+                else:
+                    continue
             elif l.startswith(2*' '): # [mode, width, height]
                 l = l.strip()
                 if reduce(bool.__or__, [l.startswith(x+':') for x in "hv"]):
@@ -201,7 +235,7 @@ class XRandR(object):
                 else: # mode
                     items[-1][1].append([l.split()])
             else:
-                items.append([l, []])
+                items.append([l, [], []])
         return screenline, items
 
     def _load_parse_screenline(self, screenline):
@@ -307,14 +341,28 @@ class XRandR(object):
                     args.append(str(o.position))
                     args.append("--rotate")
                     args.append(o.rotation)
+                    if o.scale is not None:
+                        args.append("--scale")
+                        args.append(str(o.scale))
+                    if o.scale_from is not None:
+                        args.append("--scale-from")
+                        args.append(str(o.scale_from))
             return args
 
         class OutputConfiguration(object):
-            def __init__(self, active, geometry, rotation, modename):
+            def __init__(self, active, geometry, rotation, modename, scale, scale_from):
                 self.active = active
                 if active:
                     self.position = geometry.position
                     self.rotation = rotation
+                    if scale is not None:
+                        self.scale = Scale(scale)
+                    else:
+                        self.scale = None
+                    if scale_from is not None:
+                        self.scale_from= ScaleFrom(scale_from)
+                    else:
+                        self.scale_from = None
                     if rotation.is_odd:
                         self.mode = NamedSize(Size(reversed(geometry.size)), name=modename)
                     else:

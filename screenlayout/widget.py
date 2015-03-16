@@ -1,16 +1,16 @@
 # ARandR -- Another XRandR GUI
 # Copyright (C) 2008 -- 2011 chrysn <chrysn@fsfe.org>
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -133,6 +133,8 @@ class ARandRWidget(gtk.DrawingArea):
         self._set_something('rotation', on, rot)
     def set_resolution(self, on, res):
         self._set_something('mode', on, res)
+    def set_scale_from(self, on, scale_from):
+        self._set_something('scale_from', on, scale_from)
 
     def set_active(self, on, active):
         v = self._xrandr.state.virtual
@@ -312,6 +314,7 @@ class ARandRWidget(gtk.DrawingArea):
 
         if oc.active:
             res_m = gtk.Menu()
+            scale_from_m = gtk.Menu()
             for r in os.modes:
                 i = gtk.CheckMenuItem(str(r))
                 i.props.draw_as_radio = True
@@ -323,6 +326,23 @@ class ARandRWidget(gtk.DrawingArea):
                         self.error_message(_("Setting this resolution is not possible here: %s")%e.message)
                 i.connect('activate', _res_set, on, r)
                 res_m.add(i)
+
+            # Get from other screen
+            try:
+                other_config = [k for (k,v) in self._xrandr.configuration.outputs.items() if k != on and v.active][0]
+                for r in self._xrandr.state.outputs[other_config].modes:
+                    i = gtk.CheckMenuItem(str(r))
+                    i.props.draw_as_radio = True
+                    #i.props.active = (oc.mode.name == r.name)
+                    def _scale_from_set(menuitem, on, r):
+                        try:
+                            self.set_scale_from(on, r)
+                        except InadequateConfiguration, e:
+                            self.error_message(_("Setting this resolution is not possible here: %s")%e.message)
+                    i.connect('activate', _scale_from_set, on, r)
+                    scale_from_m.add(i)
+            except:
+                raise
 
             or_m = gtk.Menu()
             for r in ROTATIONS:
@@ -346,6 +366,12 @@ class ARandRWidget(gtk.DrawingArea):
 
             m.add(res_i)
             m.add(or_i)
+
+            # Add scale-from
+            #from IPython import embed; embed()
+            scale_from_i = gtk.MenuItem(_("Scale from"))
+            scale_from_i.props.submenu = scale_from_m
+            m.add(scale_from_i)
 
         m.show_all()
         return m
