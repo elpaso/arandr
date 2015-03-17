@@ -109,7 +109,7 @@ class Scale(tuple):
     yscale = property(lambda self:self[1])
 
     def __str__(self):
-        return "%dx%d"%self
+        return "%fx%f"%self
 
 class ScaleFrom(tuple):
     """2-tuple of left and top that can be created from a '<x-scale>x<y-scale>' string"""

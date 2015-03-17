@@ -132,8 +132,12 @@ class ARandRWidget(gtk.DrawingArea):
     def set_rotation(self, on, rot):
         self._set_something('rotation', on, rot)
     def set_resolution(self, on, res):
+        # Reset the scale
+        self._set_something('scale', on, '1.0x1.0')
+        self._set_something('scale_from', on, None)
         self._set_something('mode', on, res)
     def set_scale_from(self, on, scale_from):
+        self._set_something('scale', on,  '1.0x1.0')
         self._set_something('scale_from', on, scale_from)
 
     def set_active(self, on, active):
@@ -342,7 +346,7 @@ class ARandRWidget(gtk.DrawingArea):
                     i.connect('activate', _scale_from_set, on, r)
                     scale_from_m.add(i)
             except:
-                raise
+                pass
 
             or_m = gtk.Menu()
             for r in ROTATIONS:

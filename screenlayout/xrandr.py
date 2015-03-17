@@ -50,6 +50,8 @@ class XRandR(object):
     #################### calling xrandr ####################
 
     def _output(self, *args):
+        #if not args[0] in ('--version', '--verbose'):
+        print args
         p = subprocess.Popen(("xrandr",)+args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.environ)
         ret, err = p.communicate()
         status = p.wait()
